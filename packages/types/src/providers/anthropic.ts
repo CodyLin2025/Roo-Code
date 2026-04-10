@@ -199,6 +199,66 @@ export const anthropicModels = {
 		description:
 			"Claude Haiku 4.5 delivers near-frontier intelligence at lightning speeds with extended thinking, vision, and multilingual support.",
 	},
+	"qwen3.6-plus": {
+        maxTokens: 64_000,
+        contextWindow: 1_000_000,
+        supportsImages: true,
+        supportsPromptCache: true,
+        inputPrice: 2.0,
+        outputPrice: 12.0,
+        cacheWritesPrice: 2.5,
+        cacheReadsPrice: 0.2,
+        description:
+            "Qwen3.6-Plus - Alibaba Cloud model with 1M context window, 64K output, and tiered pricing (CNY per million tokens)",
+    },
+	"qwen3.5-plus": {
+        maxTokens: 64_000,
+        contextWindow: 1_000_000,
+        supportsImages: true,
+        supportsPromptCache: true,
+        inputPrice: 0.8,
+        outputPrice: 4.8,
+        cacheWritesPrice: 1.0,
+        cacheReadsPrice: 0.08,
+        description:
+            "Qwen3.5-Plus - Alibaba Cloud model with 1M context window, 64K output, and tiered pricing (CNY per million tokens)",
+    },
+    "qwen3.5-flash": {
+        maxTokens: 64_000,
+        contextWindow: 1_000_000,
+        supportsImages: true,
+        supportsPromptCache: true,
+        inputPrice: 0.2,
+        outputPrice: 2.0,
+        cacheWritesPrice: 0.25,
+        cacheReadsPrice: 0.02,
+        description:
+            "Qwen3.5-Flash - Alibaba Cloud fast model with 1M context window, 64K output, and tiered pricing (CNY per million tokens)",
+    },
+    "doubao-seed-2.0-code": {
+        maxTokens: 128_000,
+        contextWindow: 256_000,
+        supportsImages: true,
+        supportsPromptCache: true,
+        inputPrice: 3.2,
+        outputPrice: 16.0,
+        cacheWritesPrice: 3.2,
+        cacheReadsPrice: 0.64,
+        description:
+            "Doubao Seed 2.0 Code - ByteDance coding model with 256K context window, 128K output, and tiered pricing (CNY per million tokens)",
+    },
+    "doubao-seed-2.0-pro": {
+        maxTokens: 128_000,
+        contextWindow: 256_000,
+        supportsImages: true,
+        supportsPromptCache: true,
+        inputPrice: 3.2,
+        outputPrice: 16.0,
+        cacheWritesPrice: 3.2,
+        cacheReadsPrice: 0.64,
+        description:
+            "Doubao Seed 2.0 Pro - ByteDance pro model with 256K context window, 128K output, and tiered pricing (CNY per million tokens)",
+    },
 } as const satisfies Record<string, ModelInfo>
 
 export const ANTHROPIC_DEFAULT_MAX_TOKENS = 8192
