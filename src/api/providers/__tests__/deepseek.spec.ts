@@ -30,7 +30,8 @@ vi.mock("openai", () => {
 						}
 
 						// Check if this is a reasoning_content test by looking at model
-						const isReasonerModel = options.model?.includes("deepseek-reasoner")
+						const isReasonerModel =
+							options.model?.includes("deepseek-reasoner") || options.model?.includes("deepseek-v4")
 						const isToolCallTest = options.tools?.length > 0
 
 						// Return async iterator for streaming
@@ -247,6 +248,86 @@ describe("DeepSeekHandler", () => {
 			expect((model.info as ModelInfo).preserveReasoning).toBeUndefined()
 		})
 
+		it("should return correct model info for deepseek-v4-flash", () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+			})
+			const model = v4FlashHandler.getModel()
+			expect(model.id).toBe("deepseek-v4-flash")
+			expect(model.info).toBeDefined()
+			const info = model.info as ModelInfo
+			expect(info.contextWindow).toBe(1_000_000)
+			expect(info.maxTokens).toBe(384_000)
+			expect(info.supportsImages).toBe(false)
+			expect(info.supportsPromptCache).toBe(true)
+			expect(info.supportsReasoningEffort).toEqual(["none", "high", "xhigh"])
+			expect(info.reasoningEffort).toBe("high")
+			expect(info.preserveReasoning).toBe(true)
+			expect(info.inputPrice).toBe(1)
+			expect(info.outputPrice).toBe(2)
+			expect(info.cacheWritesPrice).toBe(1)
+			expect(info.cacheReadsPrice).toBe(0.2)
+		})
+
+		it("should return correct model info for deepseek-v4-pro", () => {
+			const v4ProHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-pro",
+			})
+			const model = v4ProHandler.getModel()
+			expect(model.id).toBe("deepseek-v4-pro")
+			expect(model.info).toBeDefined()
+			const info = model.info as ModelInfo
+			expect(info.contextWindow).toBe(1_000_000)
+			expect(info.maxTokens).toBe(384_000)
+			expect(info.supportsImages).toBe(false)
+			expect(info.supportsPromptCache).toBe(true)
+			expect(info.supportsReasoningEffort).toEqual(["none", "high", "xhigh"])
+			expect(info.reasoningEffort).toBe("high")
+			expect(info.preserveReasoning).toBe(true)
+			expect(info.inputPrice).toBe(12)
+			expect(info.outputPrice).toBe(24)
+			expect(info.cacheWritesPrice).toBe(12)
+			expect(info.cacheReadsPrice).toBe(1)
+		})
+
+		it("should have preserveReasoning enabled for deepseek-v4-flash", () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+			})
+			const model = v4FlashHandler.getModel()
+			expect((model.info as ModelInfo).preserveReasoning).toBe(true)
+		})
+
+		it("should have preserveReasoning enabled for deepseek-v4-pro", () => {
+			const v4ProHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-pro",
+			})
+			const model = v4ProHandler.getModel()
+			expect((model.info as ModelInfo).preserveReasoning).toBe(true)
+		})
+
+		it("should mark deepseek-chat as deprecated", () => {
+			const chatHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-chat",
+			})
+			const model = chatHandler.getModel()
+			expect((model.info as ModelInfo).deprecated).toBe(true)
+		})
+
+		it("should mark deepseek-reasoner as deprecated", () => {
+			const reasonerHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-reasoner",
+			})
+			const model = reasonerHandler.getModel()
+			expect((model.info as ModelInfo).deprecated).toBe(true)
+		})
+
 		it("should return provided model ID with default model info if model does not exist", () => {
 			const handlerWithInvalidModel = new DeepSeekHandler({
 				...mockOptions,
@@ -255,12 +336,12 @@ describe("DeepSeekHandler", () => {
 			const model = handlerWithInvalidModel.getModel()
 			expect(model.id).toBe("invalid-model") // Returns provided ID
 			expect(model.info).toBeDefined()
-			// With the current implementation, it's the same object reference when using default model info
-			expect(model.info).toBe(handler.getModel().info)
-			// Should have the same base properties
-			expect(model.info.contextWindow).toBe(handler.getModel().info.contextWindow)
+			// Falls back to the global default model (deepseek-v4-flash)
+			expect(model.info.contextWindow).toBe(1_000_000)
+			expect(model.info.maxTokens).toBe(384_000)
 			// And should have supportsPromptCache set to true
 			expect(model.info.supportsPromptCache).toBe(true)
+			expect(model.info.supportsReasoningEffort).toEqual(["none", "high", "xhigh"])
 		})
 
 		it("should return default model if no model ID is provided", () => {
@@ -493,6 +574,122 @@ describe("DeepSeekHandler", () => {
 			]
 
 			const stream = reasonerHandler.createMessage(systemPrompt, messages, { taskId: "test", tools })
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Should have reasoning chunks
+			const reasoningChunks = chunks.filter((chunk) => chunk.type === "reasoning")
+			expect(reasoningChunks.length).toBeGreaterThan(0)
+
+			// Should have tool call chunks
+			const toolCallChunks = chunks.filter((chunk) => chunk.type === "tool_call_partial")
+			expect(toolCallChunks.length).toBeGreaterThan(0)
+			expect(toolCallChunks[0].name).toBe("get_weather")
+		})
+
+		it("should handle reasoning_content in streaming responses for deepseek-v4-flash", async () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+			})
+
+			const stream = v4FlashHandler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			// Should have reasoning chunks
+			const reasoningChunks = chunks.filter((chunk) => chunk.type === "reasoning")
+			expect(reasoningChunks.length).toBeGreaterThan(0)
+			expect(reasoningChunks[0].text).toBe("Let me think about this...")
+			expect(reasoningChunks[1].text).toBe(" I'll analyze step by step.")
+		})
+
+		it("should pass thinking and reasoning_effort for deepseek-v4-flash with default effort", async () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+			})
+
+			const stream = v4FlashHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					thinking: { type: "enabled" },
+					reasoning_effort: "high",
+				}),
+				{},
+			)
+		})
+
+		it("should pass thinking disabled when effort is none for deepseek-v4-flash", async () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+				reasoningEffort: "none",
+			})
+
+			const stream = v4FlashHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					thinking: { type: "disabled" },
+				}),
+				{},
+			)
+			// reasoning_effort should NOT be present when thinking is disabled
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs.reasoning_effort).toBeUndefined()
+		})
+
+		it("should pass reasoning_effort max for xhigh effort on deepseek-v4-flash", async () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+				reasoningEffort: "xhigh",
+			})
+
+			const stream = v4FlashHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					thinking: { type: "enabled" },
+					reasoning_effort: "max",
+				}),
+				{},
+			)
+		})
+
+		it("should handle tool calls with reasoning_content for deepseek-v4-flash", async () => {
+			const v4FlashHandler = new DeepSeekHandler({
+				...mockOptions,
+				apiModelId: "deepseek-v4-flash",
+			})
+
+			const tools: any[] = [
+				{
+					type: "function",
+					function: {
+						name: "get_weather",
+						description: "Get weather",
+						parameters: { type: "object", properties: {} },
+					},
+				},
+			]
+
+			const stream = v4FlashHandler.createMessage(systemPrompt, messages, { taskId: "test", tools })
 			const chunks: any[] = []
 			for await (const chunk of stream) {
 				chunks.push(chunk)
