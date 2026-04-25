@@ -20,6 +20,9 @@ import { OpenAiHandler } from "./openai"
 import type { ApiHandlerCreateMessageMetadata } from "../index"
 
 // Custom interface for DeepSeek params to support thinking mode and reasoning effort
+// Note: reasoning_effort accepts "high" | "max" (DeepSeek-specific extension beyond
+// the standard OpenAI "low" | "medium" | "high"). The "max" value is assigned via
+// type assertion since it's not in the OpenAI SDK's type definition.
 type DeepSeekChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParamsStreaming & {
 	thinking?: { type: "enabled" | "disabled" }
 	reasoning_effort?: "high" | "max"
@@ -59,7 +62,8 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 	override getModel() {
 		const id = this.options.apiModelId ?? deepSeekDefaultModelId
-		const info = deepSeekModels[id as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
+		const info = (deepSeekModels[id as keyof typeof deepSeekModels] ||
+			deepSeekModels[deepSeekDefaultModelId]) as ModelInfo
 		const params = getModelParams({
 			format: "openai",
 			modelId: id,
@@ -113,7 +117,9 @@ export class DeepSeekHandler extends OpenAiHandler {
 			// Resolve the effective effort value: user setting → model default → "high"
 			const modelReasoningEffort = modelInfo.reasoningEffort as ReasoningEffortExtended | undefined
 			const resolvedEffort =
-				(modelResult.reasoningEffort as ReasoningEffortExtended | undefined) ?? modelReasoningEffort ?? "high"
+				(modelResult.reasoningEffort as ReasoningEffortExtended | "disable" | undefined) ??
+				modelReasoningEffort ??
+				"high"
 
 			// "none" or "disable" → thinking disabled, no reasoning_effort
 			if (resolvedEffort === "none" || resolvedEffort === "disable") {
@@ -125,7 +131,9 @@ export class DeepSeekHandler extends OpenAiHandler {
 				// Map effort to DeepSeek-accepted values (xhigh → max, high → high)
 				const mappedEffort = mapDeepSeekEffort(resolvedEffort)
 				if (mappedEffort) {
-					requestOptions.reasoning_effort = mappedEffort
+					// DeepSeek V4 accepts "max" as reasoning_effort, which extends
+					// beyond the standard OpenAI "low" | "medium" | "high" type.
+					;(requestOptions as any).reasoning_effort = mappedEffort
 				}
 			}
 		} else if (isLegacyReasoner) {
